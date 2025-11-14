@@ -35,6 +35,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +49,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.kuit6_android_api.ui.post.viewmodel.PostViewModel
+import com.example.kuit6_android_api.ui.post.state.PostCreateUiState
+import com.example.kuit6_android_api.ui.post.viewmodel.PostCreateViewModel
+import com.example.kuit6_android_api.ui.post.viewmodel.postViewModelFactory
 import kotlinx.coroutines.launch
 
 
@@ -57,9 +61,11 @@ fun PostCreateScreen(
     onNavigateBack: () -> Unit,
     onPostCreated: () -> Unit,
     snackBarState : SnackbarHostState,
-    viewModel: PostViewModel = viewModel()
+    viewModel: PostCreateViewModel = viewModel(factory = postViewModelFactory { postRepository ->
+        PostCreateViewModel(postRepository)
+    })
 ) {
-    val context = LocalContext.current
+    val uiState by viewModel.uiState.collectAsState()
     var author by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -197,7 +203,7 @@ fun PostCreateScreen(
             Button(
                 onClick = {
                     val finalAuthor = author
-                    viewModel.createPost(finalAuthor, title, content,null) {
+                    viewModel.createPost(finalAuthor, title, content) {
                         onPostCreated()
                         scope.launch{
                             snackBarState.showSnackbar("게시글이 작성되었습니다.")
@@ -228,6 +234,13 @@ fun PostCreateScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+
+    // 에러 처리
+    LaunchedEffect(uiState) {
+        if (uiState is PostCreateUiState.Error) {
+            snackBarState.showSnackbar((uiState as PostCreateUiState.Error).message)
         }
     }
 }

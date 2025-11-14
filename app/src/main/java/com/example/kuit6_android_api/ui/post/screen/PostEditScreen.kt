@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +35,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,7 +48,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
-import com.example.kuit6_android_api.ui.post.viewmodel.PostViewModel
+import com.example.kuit6_android_api.ui.post.state.PostEditUiState
+import com.example.kuit6_android_api.ui.post.viewmodel.PostEditViewModel
+import com.example.kuit6_android_api.ui.post.viewmodel.postViewModelFactoryWithId
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,9 +60,11 @@ fun PostEditScreen(
     onNavigateBack: () -> Unit,
     onPostUpdated: () -> Unit,
     snackBarState: SnackbarHostState,
-    viewModel: PostViewModel = viewModel()
+    viewModel: PostEditViewModel = viewModel(factory = postViewModelFactoryWithId(postId) { postRepository, id ->
+        PostEditViewModel(postRepository, id)
+    })
 ) {
-    val post = viewModel.postDetail
+    val uiState by viewModel.uiState.collectAsState()
 
     var title by remember { mutableStateOf("") }
     var content by remember { mutableStateOf("") }
@@ -71,15 +77,20 @@ fun PostEditScreen(
         selectedImageUri = uri
     }
 
-    LaunchedEffect(postId) {
-        viewModel.getPostDetail(postId)
-    }
-
-    LaunchedEffect(post) {
-        if (post != null && !isLoaded) {
-            title = post.title
-            content = post.content
-            isLoaded = true
+    LaunchedEffect(uiState) {
+        when (val currentState = uiState) {
+            is PostEditUiState.Success -> {
+                if (!isLoaded) {
+                    val post = currentState.updatedPost
+                    title = post.title
+                    content = post.content
+                    isLoaded = true
+                }
+            }
+            is PostEditUiState.Error -> {
+                snackBarState.showSnackbar(currentState.message)
+            }
+            else -> { /* 다른 상태는 처리하지 않음 */ }
         }
     }
 
@@ -102,7 +113,20 @@ fun PostEditScreen(
             )
         }
     ) { paddingValues ->
-        post?.let {
+        when (val state = uiState) {
+            is PostEditUiState.Loading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            is PostEditUiState.Success -> {
+                val post = state.updatedPost
+                val existingImageUrl = post.imageUrl
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -155,14 +179,14 @@ fun PostEditScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (selectedImageUri != null || post.imageUrl != null) {
+                if (selectedImageUri != null || existingImageUrl != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(200.dp)
                     ) {
                         AsyncImage(
-                            model = selectedImageUri ?: post.imageUrl,
+                            model = selectedImageUri ?: existingImageUrl,
                             contentDescription = "선택된 이미지",
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -206,7 +230,10 @@ fun PostEditScreen(
 
                 Button(
                     onClick = {
-                        viewModel.updatePost(postId, title, content, null) {
+                        // TODO: selectedImageUri가 있을 경우 이미지 업로드 후 URL을 전달해야 함
+                        // 현재는 기존 이미지를 유지하거나 null로 처리
+                        val imageUrl = selectedImageUri?.toString() ?: existingImageUrl
+                        viewModel.updatePost(title, content, imageUrl) {
                             onPostUpdated()
                             scope.launch{
                                 snackBarState.showSnackbar("게시글이 수정되었습니다.")
@@ -228,6 +255,20 @@ fun PostEditScreen(
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.SemiBold
                         )
+                    )
+                }
+            }
+            }
+            is PostEditUiState.Error -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = state.message,
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }

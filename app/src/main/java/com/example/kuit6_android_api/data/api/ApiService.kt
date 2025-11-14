@@ -1,6 +1,5 @@
 package com.example.kuit6_android_api.data.api
 
-import android.R.attr.value
 import com.example.kuit6_android_api.data.model.request.PostCreateRequest
 import com.example.kuit6_android_api.data.model.response.BaseResponse
 import com.example.kuit6_android_api.data.model.response.PostResponse
@@ -13,28 +12,30 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 interface ApiService {
-    @GET(value = "/api/posts")
+    @GET("/api/posts")
     suspend fun getPosts(): BaseResponse<List<PostResponse>>
 
-    @POST(value= "/api/posts")
+    @POST("/api/posts")
     suspend fun createPost(
-        @Query(value = "author") author: String = "경민",
+        @Query("author") author: String = "경민",
         @Body request: PostCreateRequest
     ): BaseResponse<PostResponse>
 
-    @GET(value= "/api/posts/{id}")
+    @GET("/api/posts/{id}")
     suspend fun getPostDetail(
         @Path("id") id: Long
     ): BaseResponse<PostResponse>
 
-    @PUT(value = "/api/posts/{id}")
+    @PUT("/api/posts/{id}")
     suspend fun editPost(
-        @Path(value= "id") id: Long,
+        @Path("id") id: Long,
+        @Query("author") author: String,
         @Body request: PostCreateRequest
     ): BaseResponse<PostResponse>
 
-    @DELETE(value = "/api/posts/{id}")
+    @DELETE("/api/posts/{id}")
     suspend fun deletePost(
-        @Path(value = "id") id: Long,
-    ) : BaseResponse<Unit>
+        @Path("id") id: Long,
+        @Query("author") author: String
+    ): BaseResponse<Unit>
 }
